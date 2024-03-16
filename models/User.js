@@ -33,4 +33,4 @@ const User = new Schema({
   },
 });
 
-module.exports = Mongoose.model("User Details", User);
+module.exports = Mongoose.model("user-details", User);

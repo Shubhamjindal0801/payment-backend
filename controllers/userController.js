@@ -1,4 +1,5 @@
 const User = require("../models/User");
+const friendList = require("../models/friendList");
 const bcrypt = require("bcrypt");
 const Joi = require("joi");
 const { emailCheck } = require("../utils/emailCheck");
@@ -125,26 +126,165 @@ const checkUserLoggedIn = async (req, res) => {
     message: "User logged in.",
   });
 };
-const userDetails = async (req, res) => {
-  const creatorId = req.params.id;
-  const user = await User.findOne({ uid: creatorId });
+const getUserDetails = async (req, res) => {
+  const identifier = req.params.identifier;
+  let query = {};
+
+  if (identifier.includes("@")) {
+    const isValid = Joi.string().email().required().validate(identifier);
+    if (isValid.error) {
+      return res.status(statusCodes.BAD_REQUEST).json({
+        status: statusCodes.BAD_REQUEST,
+        message: "Email is not valid.",
+      });
+    }
+    query.email = identifier;
+  } else {
+    query.uid = identifier;
+  }
+
+  const user = await User.findOne(query);
+
   if (!user) {
-    return res.status(statusCodes.BAD_REQUEST).send({
+    return res.status(statusCodes.BAD_REQUEST).json({
       status: statusCodes.BAD_REQUEST,
       message: "User not found.",
     });
   }
+
   const userData = {
     firstName: user.firstName,
-    name: user.firstName + " " + user.lastName,
+    name: `${user.firstName} ${user.lastName}`,
     email: user.email,
     uid: user.uid,
   };
-  res.status(statusCodes.OK).send({
+
+  res.status(statusCodes.OK).json({
     status: statusCodes.OK,
     message: "User details.",
     data: userData,
   });
 };
+const addFriend = async (req, res) => {
+  const id = req.params.id;
+  const { userId } = req.body;
 
-module.exports = { registerUser, signInUser, checkUserLoggedIn, userDetails };
+  if (id === userId) {
+    return res.status(statusCodes.BAD_REQUEST).send({
+      status: statusCodes.BAD_REQUEST,
+      message: "You can't add yourself as a friend of yours.",
+    });
+  }
+  const UserData = await User.findOne({ uid: id });
+  if (!UserData) {
+    return res.status(statusCodes.BAD_REQUEST).send({
+      status: statusCodes.BAD_REQUEST,
+      message: "User not found.",
+    });
+  }
+
+  const FriendData = await friendList.findOne({ creatorId: id });
+  if (!FriendData) {
+    const friendObj = new friendList({
+      creatorId: id,
+      friends: [{ friendId: userId, streak: 1 }],
+    });
+    await friendObj.save();
+    return res.status(statusCodes.OK).send({
+      status: statusCodes.OK,
+      message: "Yout first friend added successfully",
+    });
+  }
+  for (let friend of FriendData.friends) {
+    if (friend.friendId === userId) {
+      return res.status(statusCodes.BAD_REQUEST).send({
+        status: statusCodes.BAD_REQUEST,
+        message: "Friend already added",
+      });
+    }
+  }
+  await friendList.findOneAndUpdate(
+    { creatorId: id },
+    { friends: [...FriendData.friends, { friendId: userId, streak: 1 }] }
+  );
+  return res.status(statusCodes.OK).send({
+    status: statusCodes.OK,
+    message: "Friend added successfully",
+  });
+};
+const getFriendList = async (req, res) => {
+  const id = req.params.id;
+  const FriendData = await friendList.findOne({ creatorId: id });
+  if (!FriendData) {
+    return res.status(statusCodes.BAD_REQUEST).send({
+      status: statusCodes.BAD_REQUEST,
+      message: "No Friends added",
+    });
+  }
+  const FriendList = FriendData.friends;
+  let friends = [];
+  for (const friend of FriendList) {
+    try {
+      const UserDetail = await User.findOne({ uid: friend.friendId });
+      friends = [
+        ...friends,
+        {
+          name: UserDetail.firstName + " " + UserDetail.lastName,
+          email: UserDetail.email,
+          streak: friend.streak,
+          uid: UserDetail.uid,
+        },
+      ];
+    } catch (error) {
+      return res.status(statusCodes.BAD_REQUEST).send({
+        status: statusCodes.BAD_REQUEST,
+        message: "DB Error",
+      });
+    }
+  }
+  return res.status(statusCodes.OK).send({
+    status: statusCodes.OK,
+    message: "Successfully fetched freind list",
+    data: friends,
+  });
+};
+const removeFriend = async (req, res) => {
+  const id = req.params.id;
+  const { friendId } = req.body;
+
+  const FriendData = await friendList.findOne({ creatorId: id });
+  if (!FriendData) {
+    return res.status(statusCodes.BAD_REQUEST).send({
+      status: statusCodes.BAD_REQUEST,
+      message: "Something went wrong",
+    });
+  }
+
+  const alteredFriendList = FriendData.friends
+    ?.map((friend) => {
+      if (friend.friendId !== friendId) {
+        return friend;
+      }
+      return null;
+    })
+    .filter((friend) => friend !== null);
+
+  await friendList.findOneAndUpdate(
+    { creatorId: id },
+    { friends: alteredFriendList }
+  );
+  return res.status(statusCodes.OK).send({
+    status: statusCodes.OK,
+    message: "Friend removed successfully",
+  });
+};
+
+module.exports = {
+  registerUser,
+  signInUser,
+  checkUserLoggedIn,
+  getUserDetails,
+  addFriend,
+  getFriendList,
+  removeFriend,
+};

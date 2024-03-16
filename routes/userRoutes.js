@@ -4,12 +4,18 @@ const {
   registerUser,
   signInUser,
   checkUserLoggedIn,
-  userDetails,
+  getUserDetails,
+  addFriend,
+  getFriendList,
+  removeFriend,
 } = require("../controllers/userController");
 
 router.post("/signup", registerUser);
 router.post("/login", signInUser);
 router.get("/logged/:id", checkUserLoggedIn);
-router.get("/get-details/:id", userDetails);
+router.get("/get-user-detail/:identifier", getUserDetails);
+router.post("/add-friend/:id", addFriend);
+router.post("/remove-friend/:id", removeFriend);
+router.get("/get-friend-list/:id", getFriendList);
 
 module.exports = router;
