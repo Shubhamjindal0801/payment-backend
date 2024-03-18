@@ -18,13 +18,7 @@ const registerUser = async (req, res) => {
     email: Joi.string().email().required(),
     password: Joi.string().min(6).max(15).required(),
   }).validate(req.body);
-  if (isValid.error) {
-    return res.status(statusCodes.BAD_REQUEST).send({
-      status: statusCodes.BAD_REQUEST,
-      message: "Invalid input",
-      data: isValid.error,
-    });
-  }
+ 
   const { firstName, lastName, email, password } = req.body;
   const isEmailExist = await emailCheck(email);
   if (isEmailExist === "E") {
@@ -214,6 +208,7 @@ const addFriend = async (req, res) => {
 };
 const getFriendList = async (req, res) => {
   const id = req.params.id;
+  console.log(id);
   const FriendData = await friendList.findOne({ creatorId: id });
   if (!FriendData) {
     return res.status(statusCodes.BAD_REQUEST).send({
@@ -222,6 +217,7 @@ const getFriendList = async (req, res) => {
     });
   }
   const FriendList = FriendData.friends;
+  console.log(FriendList);
   let friends = [];
   for (const friend of FriendList) {
     try {
